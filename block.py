@@ -9,11 +9,15 @@ class BlockTX(object):
 
     def serialize(self):
         return str([s.serialize() for s in self.txs])
+    def spends(self):
+        return [t.parent_tx for t in self.txs]
     @staticmethod
     def deserialize(s):
         v = ast.literal_eval(s)
         if isinstance(v, list):
-            return BlockTX(map(TX.deserialize, v))
+            b = BlockTX(map(TX.deserialize, v))
+            
+            return b
         else:
             raise ValueError("Malformed tx block")
 class BlockHeader(object):
@@ -38,4 +42,3 @@ class BlockHeader(object):
 # print BlockHeader.deserialize(BlockHeader(1,block.hash(),3,4).serialize())
 # print BlockHeader(1,block.hash(),3,4).hash()
 
-GENESIS = BlockHeader(0,sha(""), None, 0)
