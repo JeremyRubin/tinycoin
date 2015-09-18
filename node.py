@@ -1,24 +1,38 @@
 from base import *
+import chain as C
+import block as B
 
 class Context(object):
     def __init__(self):
         self.peers = {}
         self.q = Queue(maxsize=10)
+        self.chain = C.Chain()
     def remove_peer(self, peer):
         del self.peers[peer]
     def add_peer(self, peer, conn):
         if peer in self.peers:
             self.peers[peer].close()
         self.peers[peer] = conn
+    def peer_open(self, peer):
+        return peer in self.peers
+    @gen.coroutine
+    def msg(self, peer, msg):
+        self.peers[peer].write_message(msg)
     @gen.coroutine
     def broadcast(self, msg, without=set()):
         for peer, conn in self.peers:
             if peer in without:
                 continue
             yield conn.write_message(msg)
-"""
-Peering Section
-"""                
+
+#######################
+### Peering Section####
+#######################
+
+START = 0
+OPEN = 1
+MSG = 2
+CLOSE = 3
 
 """http://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.xhtml?&page=105 shows 7698 being unused"""
 def local_peers():
@@ -31,10 +45,12 @@ def local_peers():
 
 # print local_peers()
 
-
-def MakeIncomingPeer(ctx):
+#######################
+###### Incoming Peer ##
+#######################
+def MakeIncomingPeerHandler(ctx):
     """Create a handler bound to a specific context instance"""
-    class IncomingPeer(tornado.websocket.WebSocketHandler):
+    class IncomingPeerHandler(tornado.websocket.WebSocketHandler):
         def check_origin(self, origin):
             return True
         @gen.coroutine
@@ -50,8 +66,11 @@ def MakeIncomingPeer(ctx):
         @gen.coroutine
         def on_close(self):
             yield ctx.q.put((CLOSE,self.peer()))
-    return IncomingPeer
+    return IncomingPeerHandler
 
+###############################
+####   Outgoing Peer ##########
+###############################
 def client_on_message(ctx, peer):
     @gen.coroutine
     def cls(self, message):
@@ -68,27 +87,35 @@ def OutGoingPeer(ctx, host):
 NPEERS = 10
 @gen.coroutine
 def repeer(ctx):
-    # while True:
+    #while True:
         print "A"
         for peer in local_peers():
+            if ctx.peer_open(peer):
+                continue
             try:
                 conn = yield OutGoingPeer(ctx, peer)
                 yield ctx.q.put((OPEN, peer, conn))
             except Exception as e:
                 print e
-
-        yield gen.sleep(0.5)
+            yield gen.sleep(10)
 
 def handle_start(ctx):
     IOLoop.current().spawn_callback(repeer,ctx)
 def handle_open(ctx, peer, conn):
     ctx.add_peer(peer, conn)
-tx_store = {}
-def lookup_tx(txid):
-    tx_store.get(txid, {"error":True} )
+def handle_close(ctx, peer):
+    ctx.remove_peer(peer)
 
-miner_q = Queue(maxsize=20)
 
+#################################
+# THIS IS THE IMPORTANT PART ####
+#################################
+#################################
+
+ADD_TX = 0
+NEW_BLOCK = 1
+QUERY_TX = 2
+GET_WORK = 3
 def handle_msg(ctx, peer, message):
     m = ast.literal_eval(message)
     if m["hops"] > 4:
@@ -98,24 +125,27 @@ def handle_msg(ctx, peer, message):
         t = m["type"]
         if t == ADD_TX:
             tx = TX.deserialize(m["data"])
+            ctx.chain.add_tx(tx)
             yield ctx.broadcast(m, without={peer})
-            yield miner_q.put(tx)
+        if t == GET_WORK:
+            yield ctx.message(peer, str(chain.get_work()))
         if t == NEW_BLOCK:
+            header_s, block_s = ast.literal_eval(m["data"])
+            header = B.BlockHeader.deserialize(header_s)
+            block = B.BlockTX.deserialize(block_s)
+            ctx.chain.add_block(header, block)
             yield ctx.broadcast(m, without={peer})
         if t == QUERY_TX:
-            send_reply(lookup_tx(m["data"]))
-        
+            yield ctx.msg(peer, str(ctx.chain.lookup_tx(m["data"])))
 
-        
-def handle_close(ctx, peer):
-    ctx.remove_peer(peer)
+
+
 
 functions = {START : handle_start,
              OPEN  : handle_open,
              MSG   : handle_msg,
              CLOSE : handle_close}
 
-            
 
 @gen.coroutine
 def network_state_machine(ctx):
@@ -132,7 +162,7 @@ def network_state_machine(ctx):
 def main():
     ctx = Context()
     application = tornado.web.Application([
-        (r"/", MakeIncomingPeer(ctx)),
+        (r"/", MakeIncomingPeerHandler(ctx)),
     ])
     if len(sys.argv) > 1:
         application.listen(int(sys.argv[1]))
@@ -140,4 +170,5 @@ def main():
         application.listen(PORT)
     IOLoop.current().spawn_callback(network_state_machine, ctx)
     tornado.ioloop.IOLoop.current().start()
-main()
+if __name__ == "__main__":
+    main()
