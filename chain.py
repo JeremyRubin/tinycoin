@@ -49,6 +49,7 @@ class Chain(object):
                                                         GENESIS_BLOCK,
                                                         UTXOSET({}))}]
         self.max_height = 0
+        self.pending_tx = B.BlockTX([])
     @staticmethod
     def make_new_utxo_set(parent, child, header):
         if not pow(header.hash(), BOUND):
@@ -80,7 +81,15 @@ class Chain(object):
         pass
     def get_work(self):
         """ Returns a header just for mining"""
-        pass
+        d = self.max_height
+        while True:
+            for parent, _ in self.chain[self.max_height].iteritems():
+                prev = parent
+                break
+            else:
+                d -= 1
+
+            return (B.BlockHeader(d+1, self.pending_tx.hash(), prev, ""), self.pending_tx)
     def lookup_tx(self, txid):
         """ Returns data on a utxo"""
         return "{'error':-1}"

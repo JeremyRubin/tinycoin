@@ -17,13 +17,18 @@ class Context(object):
         return peer in self.peers
     @gen.coroutine
     def msg(self, peer, msg):
+        print self.peers
         self.peers[peer].write_message(msg)
     @gen.coroutine
     def broadcast(self, msg, without=set()):
-        for peer, conn in self.peers:
+        for peer, conn in self.peers.iteritems():
+            print "LOOK", peer, without, dir(conn)
             if peer in without:
                 continue
-            yield conn.write_message(msg)
+            try:
+                yield conn.write_message(msg)
+            except Exception as e:
+                print peer, e
 
 #######################
 ### Peering Section####
@@ -58,7 +63,7 @@ def MakeIncomingPeerHandler(ctx):
             self.peer()
             yield ctx.q.put((OPEN,self.peer(), self))
         def peer(self):
-            return self.request.headers["host"]
+            return self.request.remote_ip
         @gen.coroutine
         def on_message(self, message):
             print message
@@ -73,7 +78,7 @@ def MakeIncomingPeerHandler(ctx):
 ###############################
 def client_on_message(ctx, peer):
     @gen.coroutine
-    def cls(self, message):
+    def cls(message):
         if message is None:
             yield ctx.q.put((CLOSE,peer))
         else:
@@ -99,10 +104,13 @@ def repeer(ctx):
                 print e
             yield gen.sleep(10)
 
+@gen.coroutine
 def handle_start(ctx):
     IOLoop.current().spawn_callback(repeer,ctx)
+@gen.coroutine
 def handle_open(ctx, peer, conn):
     ctx.add_peer(peer, conn)
+@gen.coroutine
 def handle_close(ctx, peer):
     ctx.remove_peer(peer)
 
@@ -116,6 +124,7 @@ ADD_TX = 0
 NEW_BLOCK = 1
 QUERY_TX = 2
 GET_WORK = 3
+@gen.coroutine
 def handle_msg(ctx, peer, message):
     m = ast.literal_eval(message)
     if m["hops"] > 4:
@@ -126,15 +135,15 @@ def handle_msg(ctx, peer, message):
         if t == ADD_TX:
             tx = TX.deserialize(m["data"])
             ctx.chain.add_tx(tx)
-            yield ctx.broadcast(m, without={peer})
+            yield ctx.broadcast(str(m), without={peer})
         if t == GET_WORK:
-            yield ctx.message(peer, str(chain.get_work()))
+            yield ctx.msg(peer, str(map(lambda a: a.serialize(), ctx.chain.get_work())))
         if t == NEW_BLOCK:
             header_s, block_s = ast.literal_eval(m["data"])
             header = B.BlockHeader.deserialize(header_s)
             block = B.BlockTX.deserialize(block_s)
             ctx.chain.add_block(header, block)
-            yield ctx.broadcast(m, without={peer})
+            yield ctx.broadcast(str(m), without={peer})
         if t == QUERY_TX:
             yield ctx.msg(peer, str(ctx.chain.lookup_tx(m["data"])))
 
@@ -151,16 +160,13 @@ functions = {START : handle_start,
 def network_state_machine(ctx):
     yield ctx.q.put((START,))
     while True:
-        print "IOLOOP"
         item = yield ctx.q.get()
         print item
-        functions[item[0]](ctx, *item[1:])
+        yield functions[item[0]](ctx, *item[1:])
         ctx.q.task_done()
 
 
-# if __name__ == "__main__":
-def main():
-    ctx = Context()
+def launch_app(ctx):
     application = tornado.web.Application([
         (r"/", MakeIncomingPeerHandler(ctx)),
     ])
@@ -168,6 +174,9 @@ def main():
         application.listen(int(sys.argv[1]))
     else:
         application.listen(PORT)
+def main():
+    ctx = Context()
+    launch_app(ctx)
     IOLoop.current().spawn_callback(network_state_machine, ctx)
     tornado.ioloop.IOLoop.current().start()
 if __name__ == "__main__":

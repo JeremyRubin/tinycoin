@@ -1,8 +1,9 @@
 
 from base import *
-import transaction
+import transaction as T
 class BlockTX(object):
     def __init__(self, txs):
+        """ List of transactions (TX)"""
         self.txs = txs
     def hash(self):
         sha(self.serialize())
@@ -14,7 +15,7 @@ class BlockTX(object):
     def deserialize(s):
         v = ast.literal_eval(s)
         if isinstance(v, list):
-            b = BlockTX(map(TX.deserialize, v))
+            b = BlockTX(map(T.TX.deserialize, v))
             return b
         else:
             raise ValueError("Malformed tx block")
@@ -27,11 +28,12 @@ class BlockHeader(object):
         self.reward_address = reward_address
     def serialize(self):
         return str((self.nonce, self.height, self.block_hash, self.prev, self.reward_address))
+    
 
     @staticmethod
     def deserialize(s):
         v = ast.literal_eval(s)
-        if isinstance(v, tuple) and len(v) == 4:
+        if isinstance(v, tuple) and len(v) == 5:
             return BlockHeader(v[1], v[2], v[3], v[4], v[0])
         else:
             raise ValueError("Bad BlockHeader")
