@@ -8,7 +8,9 @@ It is not "industrial quality", with an emphasis on simplicity over robustness.
 
 It is a work in progress and is not feature complete at this point, however it is usable as an educational tool.
 
-TinyCoin has the following constraint: total size of executable code should not exceed 1000 lines of code. This does not include tests or the README.md.
+TinyCoin has the following constraint: total size of executable code should not exceed 1000 lines of code or teachable in an hour or two. This limit does not include tests or the README.md.
+
+This initial version was put together in a couple of hours for HackMIT HackWeek 2015.
 
 ## Repo Overview
 
