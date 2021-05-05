@@ -1,4 +1,4 @@
-#TinyCoin
+# TinyCoin
 
 ## What is TinyCoin?
 
