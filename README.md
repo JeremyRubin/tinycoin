@@ -12,6 +12,10 @@ TinyCoin has the following constraint: total size of executable code should not 
 
 This initial version was put together in a couple of hours for HackMIT HackWeek 2015.
 
+## Fetching dependencies
+
+Please fetch the required dependencies (preferably in a virtual environment) by running `pip install -r requirements.txt`
+
 ## Repo Overview
 
 1. LICENSE -- MIT License
