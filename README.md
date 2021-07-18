@@ -21,7 +21,7 @@ This initial version was put together in a couple of hours for HackMIT HackWeek 
 5. block.py  -- The structure and header that transactions are bundled into
 6. chain.py -- The data structure that aggregates blocks together and checks for validity of blocks
 7. node.py -- the network code for talking to other users running TinyCoin and propagating blocks as well as interacting with clients.
-8. miner.py -- a client script that gets mining work from a running nod
+8. miner.py -- a client script that gets mining work from a running node
 9. tests.py -- A (growing!) set of tests to ensure proper behavior. Full testing is not needed as certain "industrial strength" classes of errors should be ignored for simplicity
 
 
